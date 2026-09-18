@@ -1,0 +1,640 @@
+/* gridgrind — LeetCode pattern tracker with adaptive progression + spaced repetition.
+ * No build step. PATTERNS comes from data.js (parsed from the "Ultimate LeetCode
+ * Patterns" list: https://github.com/Automedon/ultimate-leetcode-patterns).
+ */
+
+const EASY_UNLOCK_MEDIUM = 3; // solve this many Easy in a pattern before Medium is suggested
+const MEDIUM_ADVANCE_NEXT = 2; // solve this many Medium before moving on to the next pattern
+const TIMER_MIN = { Easy: 30, Medium: 45 };
+const BOX_INTERVAL_DAYS = [1, 2, 4, 8, 16, 30]; // Leitner box -> days until due again
+
+const PROGRESS_KEY = "gridgrind_progress_v1";
+const ACTIVE_PATTERN_KEY = "gridgrind_active_pattern_v1";
+
+/* ---------------------------------------------------------------------- */
+/* Seed: real history already logged by hand in the obsidian-vault notes  */
+/* (leetcode/latwe.md, lekko problematyczne.md, trudne.md), pattern 1.    */
+/* ---------------------------------------------------------------------- */
+
+const SEED_DATE = "2026-08-31";
+
+const SEED_PROGRESS = {
+  "ransom-note": {
+    personalDifficulty: "easy",
+    box: 3,
+    attempts: [{ date: SEED_DATE, outcome: "clean", timeSec: null, note: "" }],
+  },
+  "contains-duplicate": {
+    personalDifficulty: "medium",
+    box: 1,
+    attempts: [
+      {
+        date: SEED_DATE,
+        outcome: "struggled",
+        timeSec: null,
+        note: "Pomyliłem: find() na unordered_map zwraca iterator, nie wartość. Pierwsze rozwiązanie działało, ale nieoptymalne pamięciowo (mapa zamiast setu).",
+      },
+    ],
+  },
+  "valid-anagram": {
+    personalDifficulty: "medium",
+    box: 1,
+    attempts: [
+      {
+        date: SEED_DATE,
+        outcome: "struggled",
+        timeSec: null,
+        note: "Użyłem pełnej hash mapy do dodawania/odejmowania, a mogłem zwykłej tablicy 26 liter — mniejsze constrainty pozwalają na prostsze rozwiązanie.",
+      },
+    ],
+  },
+  "longest-palindrome": {
+    personalDifficulty: "medium",
+    box: 1,
+    attempts: [
+      {
+        date: SEED_DATE,
+        outcome: "struggled",
+        timeSec: null,
+        note: "Nie ogarnąłem od razu obsługi środkowego pojedynczego znaku przy nieparzystych długościach (np. 'aabccd' — kilka par plus jedna pojedyncza litera w środku).",
+      },
+    ],
+  },
+  "two-sum": {
+    personalDifficulty: "hard",
+    box: 0,
+    attempts: [
+      {
+        date: SEED_DATE,
+        outcome: "failed",
+        timeSec: null,
+        note: "Zapomniałem o unordered_map w ogóle i jak robić find() na niej — nawet po podpowiedziach nie skończyłem zadania.",
+      },
+    ],
+  },
+  "isomorphic-strings": {
+    personalDifficulty: "hard",
+    box: 0,
+    attempts: [
+      {
+        date: SEED_DATE,
+        outcome: "struggled",
+        timeSec: null,
+        note: "Nie miałem pomysłu przez odwróconą kolejność mapowania; nawet po podpowiedzi użyłem hash mapy zamiast tablicy ASCII (256 znaków).",
+      },
+    ],
+  },
+  "word-pattern": {
+    personalDifficulty: "hard",
+    box: 0,
+    attempts: [
+      {
+        date: SEED_DATE,
+        outcome: "struggled",
+        timeSec: null,
+        note: "Zapomniałem jak rozbić string ze spacjami na vector<string> (istringstream) i pomyliłem push z push_back. To niemal to samo rozwiązanie co Isomorphic Strings zrobione wcześniej.",
+      },
+    ],
+  },
+};
+
+/* ---------------------------------------------------------------------- */
+/* Date helpers                                                            */
+/* ---------------------------------------------------------------------- */
+
+function todayStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+function addDays(dateStr, days) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function daysBetween(fromStr, toStr) {
+  const a = new Date(fromStr + "T00:00:00");
+  const b = new Date(toStr + "T00:00:00");
+  return Math.round((b - a) / 86400000);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Storage                                                                 */
+/* ---------------------------------------------------------------------- */
+
+let progress = {};
+let activePatternId = 1;
+
+function loadState() {
+  try {
+    progress = JSON.parse(localStorage.getItem(PROGRESS_KEY)) || {};
+  } catch (e) {
+    progress = {};
+  }
+  const savedPattern = Number(localStorage.getItem(ACTIVE_PATTERN_KEY));
+  activePatternId = savedPattern && PATTERNS.some((p) => p.id === savedPattern) ? savedPattern : 1;
+
+  if (Object.keys(progress).length === 0) {
+    // First run: seed with real, already-logged history for pattern 1.
+    for (const slug in SEED_PROGRESS) {
+      const seed = SEED_PROGRESS[slug];
+      const lastAttempt = seed.attempts[seed.attempts.length - 1];
+      progress[slug] = {
+        personalDifficulty: seed.personalDifficulty,
+        box: seed.box,
+        due: addDays(lastAttempt.date, BOX_INTERVAL_DAYS[seed.box]),
+        attempts: seed.attempts,
+      };
+    }
+    saveProgress();
+    saveActivePattern(1);
+  }
+}
+
+function saveProgress() {
+  localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+}
+function saveActivePattern(id) {
+  activePatternId = id;
+  localStorage.setItem(ACTIVE_PATTERN_KEY, String(id));
+}
+
+function getProgress(slug) {
+  return progress[slug] || { personalDifficulty: null, box: 0, due: null, attempts: [] };
+}
+
+/* ---------------------------------------------------------------------- */
+/* Problem lookup                                                         */
+/* ---------------------------------------------------------------------- */
+
+const PROBLEM_INDEX = {}; // slug -> { ...problem, patternId, patternName }
+for (const pattern of PATTERNS) {
+  for (const prob of pattern.problems) {
+    if (!PROBLEM_INDEX[prob.slug]) {
+      PROBLEM_INDEX[prob.slug] = { ...prob, patternId: pattern.id, patternName: pattern.name };
+    }
+  }
+}
+
+function hasAnyAttempt(slug) {
+  return (progress[slug]?.attempts.length || 0) > 0;
+}
+function isSolved(slug) {
+  const p = progress[slug];
+  if (!p || p.attempts.length === 0) return false;
+  return p.attempts.some((a) => a.outcome !== "failed");
+}
+
+function patternStats(pattern) {
+  const easy = pattern.problems.filter((p) => p.difficulty === "Easy");
+  const med = pattern.problems.filter((p) => p.difficulty === "Medium");
+  const easySolved = easy.filter((p) => isSolved(p.slug)).length;
+  const medSolved = med.filter((p) => isSolved(p.slug)).length;
+  const attempted = pattern.problems.filter((p) => hasAnyAttempt(p.slug)).length;
+  return {
+    easyTotal: easy.length,
+    medTotal: med.length,
+    easySolved,
+    medSolved,
+    total: pattern.problems.length,
+    attempted,
+  };
+}
+
+/* ---------------------------------------------------------------------- */
+/* Adaptive suggestion + due reviews                                      */
+/* ---------------------------------------------------------------------- */
+
+function getSuggestion() {
+  let guard = 0;
+  let id = activePatternId;
+  while (guard < PATTERNS.length + 1) {
+    guard += 1;
+    const pattern = PATTERNS.find((p) => p.id === id);
+    if (!pattern) return null;
+    const stats = patternStats(pattern);
+
+    const nextEasy = pattern.problems.find((p) => p.difficulty === "Easy" && !hasAnyAttempt(p.slug));
+    if (stats.easySolved < EASY_UNLOCK_MEDIUM && nextEasy) {
+      return { problem: nextEasy, pattern };
+    }
+    const nextMedium = pattern.problems.find((p) => p.difficulty === "Medium" && !hasAnyAttempt(p.slug));
+    if (stats.medSolved < MEDIUM_ADVANCE_NEXT && nextMedium) {
+      return { problem: nextMedium, pattern };
+    }
+    // This pattern is either cleared or exhausted in scope — move to the next one.
+    id += 1;
+    if (id > PATTERNS.length) return null;
+    saveActivePattern(id);
+  }
+  return null;
+}
+
+function getDueReviews() {
+  const today = todayStamp();
+  const out = [];
+  for (const slug in progress) {
+    const p = progress[slug];
+    if (p.attempts.length > 0 && p.due && p.due <= today) {
+      const info = PROBLEM_INDEX[slug];
+      if (!info) continue;
+      out.push({ slug, ...info, due: p.due, box: p.box, personalDifficulty: p.personalDifficulty, overdueDays: daysBetween(p.due, today) });
+    }
+  }
+  out.sort((a, b) => a.due.localeCompare(b.due));
+  return out;
+}
+
+function overallStats() {
+  let solved = 0;
+  let total = 0;
+  for (const pattern of PATTERNS) total += pattern.problems.length;
+  const seen = new Set();
+  for (const slug in progress) {
+    if (seen.has(slug)) continue;
+    seen.add(slug);
+    if (isSolved(slug)) solved += 1;
+  }
+  return { solved, total };
+}
+
+function currentStreak() {
+  const days = new Set();
+  for (const slug in progress) {
+    for (const a of progress[slug].attempts) days.add(a.date);
+  }
+  if (days.size === 0) return 0;
+  const sorted = [...days].sort().reverse();
+  const today = todayStamp();
+  const yesterday = addDays(today, -1);
+  if (sorted[0] !== today && sorted[0] !== yesterday) return 0;
+  let streak = 1;
+  let cursor = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    const expected = addDays(cursor, -1);
+    if (sorted[i] === expected) {
+      streak += 1;
+      cursor = sorted[i];
+    } else if (sorted[i] === cursor) {
+      continue;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+/* ---------------------------------------------------------------------- */
+/* DOM refs                                                                */
+/* ---------------------------------------------------------------------- */
+
+const els = {
+  nav: document.getElementById("nav"),
+  statStrip: document.getElementById("statStrip"),
+  viewHome: document.getElementById("viewHome"),
+  viewBrowse: document.getElementById("viewBrowse"),
+  viewSession: document.getElementById("viewSession"),
+  reviewHeading: document.getElementById("reviewHeading"),
+  reviewList: document.getElementById("reviewList"),
+  suggestCard: document.getElementById("suggestCard"),
+  patternList: document.getElementById("patternList"),
+  backBtn: document.getElementById("backBtn"),
+  sessionHead: document.getElementById("sessionHead"),
+  sessionTitle: document.getElementById("sessionTitle"),
+  openLeetcodeBtn: document.getElementById("openLeetcodeBtn"),
+  timerDisplay: document.getElementById("timerDisplay"),
+  timerStartBtn: document.getElementById("timerStartBtn"),
+  timerResetBtn: document.getElementById("timerResetBtn"),
+  priorNoteBlock: document.getElementById("priorNoteBlock"),
+  finishBtn: document.getElementById("finishBtn"),
+  outcomeForm: document.getElementById("outcomeForm"),
+  outcomeRow: document.getElementById("outcomeRow"),
+  diffSelect: document.getElementById("diffSelect"),
+  notesInput: document.getElementById("notesInput"),
+  cancelSaveBtn: document.getElementById("cancelSaveBtn"),
+  saveAttemptBtn: document.getElementById("saveAttemptBtn"),
+  attemptsLog: document.getElementById("attemptsLog"),
+};
+
+let expandedPatterns = new Set();
+let mainView = "home"; // "home" | "browse" — remembered so "back" from session returns correctly
+
+/* ---------------------------------------------------------------------- */
+/* Rendering: top-level views                                             */
+/* ---------------------------------------------------------------------- */
+
+function renderStatStrip() {
+  const { solved, total } = overallStats();
+  const streak = currentStreak();
+  const activePattern = PATTERNS.find((p) => p.id === activePatternId);
+  els.statStrip.innerHTML = `
+    <span><b>${solved}</b> / ${total} rozwiązane</span>
+    <span>◆ streak <b>${streak}</b> ${streak === 1 ? "dzień" : "dni"}</span>
+    <span>aktywny pattern: <b>${activePattern ? activePattern.name : "—"}</b></span>
+  `;
+}
+
+function showMainView(name) {
+  mainView = name;
+  els.viewHome.hidden = name !== "home";
+  els.viewBrowse.hidden = name !== "browse";
+  els.viewSession.hidden = true;
+  [...els.nav.children].forEach((b) => b.classList.toggle("active", b.dataset.view === name));
+}
+
+function renderHome() {
+  const reviews = getDueReviews();
+  els.reviewHeading.hidden = reviews.length === 0;
+  els.reviewList.innerHTML = "";
+  reviews.forEach((r) => {
+    const row = document.createElement("button");
+    row.className = "review-row" + (r.overdueDays > 7 ? " overdue-hard" : "");
+    row.innerHTML = `
+      <div class="review-main">
+        <span class="review-title">${r.title}</span>
+        <span class="review-meta">${r.patternName} · ${r.difficulty}${r.personalDifficulty ? " · dla Ciebie: " + r.personalDifficulty : ""}</span>
+      </div>
+      <span class="review-days">${r.overdueDays === 0 ? "dziś" : r.overdueDays + "d spóźnione"}</span>
+    `;
+    row.addEventListener("click", () => openSession(r.slug));
+    els.reviewList.appendChild(row);
+  });
+
+  const suggestion = getSuggestion();
+  if (!suggestion) {
+    els.suggestCard.innerHTML = `<p class="empty-note">Wszystkie zadania Easy/Medium ze wszystkich 41 patternów zaliczone. 🎉 Czas na Hard albo powtórki.</p>`;
+    return;
+  }
+  const { problem, pattern } = suggestion;
+  els.suggestCard.innerHTML = `
+    <div class="suggest-top">
+      <span class="pattern-tag">${pattern.name}</span>
+      <span class="diff-tag ${problem.difficulty}">${problem.difficulty}</span>
+    </div>
+    <h3 class="suggest-title">${problem.title}</h3>
+    <div class="suggest-actions">
+      <button class="btn primary" id="startSuggestedBtn">Start (${TIMER_MIN[problem.difficulty]} min)</button>
+    </div>
+    ${reviews.length > 0 ? `<p class="warn-line">Masz ${reviews.length} zaległych powtórek — może najpierw je ogarnij?</p>` : ""}
+  `;
+  document.getElementById("startSuggestedBtn").addEventListener("click", () => openSession(problem.slug));
+}
+
+function statusChipFor(slug) {
+  const p = progress[slug];
+  if (!p || p.attempts.length === 0) return { cls: "new", label: "nowe" };
+  if (p.box >= 4) return { cls: "mastered", label: "opanowane" };
+  const today = todayStamp();
+  if (p.due <= today) {
+    const overdue = daysBetween(p.due, today);
+    return overdue > 3 ? { cls: "overdue", label: overdue + "d spóźnione" } : { cls: "due", label: "do powtórki" };
+  }
+  return { cls: "new", label: "w trakcie" };
+}
+
+function renderBrowse() {
+  els.patternList.innerHTML = "";
+  PATTERNS.forEach((pattern) => {
+    const stats = patternStats(pattern);
+    const item = document.createElement("div");
+    item.className = "pattern-item";
+    const pct = stats.total ? Math.round((stats.attempted / stats.total) * 100) : 0;
+    const isExpanded = expandedPatterns.has(pattern.id);
+
+    const head = document.createElement("div");
+    head.className = "pattern-head";
+    head.innerHTML = `
+      <span class="pattern-name"><span class="idx">${pattern.id}.</span> ${pattern.name} ${pattern.id === activePatternId ? '<span class="pattern-active-mark">● aktywny</span>' : ""}</span>
+      <span class="pattern-progress">
+        <span class="pattern-count">${stats.attempted}/${stats.total} (E:${stats.easySolved}/${stats.easyTotal} M:${stats.medSolved}/${stats.medTotal})</span>
+        <span class="pattern-bar"><span class="pattern-bar-fill" style="width:${pct}%"></span></span>
+      </span>
+    `;
+    head.addEventListener("click", () => {
+      if (expandedPatterns.has(pattern.id)) expandedPatterns.delete(pattern.id);
+      else expandedPatterns.add(pattern.id);
+      renderBrowse();
+    });
+    item.appendChild(head);
+
+    if (isExpanded) {
+      const list = document.createElement("div");
+      list.className = "problem-list";
+      pattern.problems.forEach((prob) => {
+        const chip = statusChipFor(prob.slug);
+        const row = document.createElement("div");
+        row.className = "problem-row";
+        row.innerHTML = `
+          <span class="problem-left">
+            <span class="diff-tag ${prob.difficulty}">${prob.difficulty[0]}</span>
+            <span class="problem-title">${prob.title}</span>
+          </span>
+          <span class="status-chip ${chip.cls}">${chip.label}</span>
+        `;
+        row.addEventListener("click", () => openSession(prob.slug));
+        list.appendChild(row);
+      });
+      item.appendChild(list);
+    }
+
+    els.patternList.appendChild(item);
+  });
+}
+
+/* ---------------------------------------------------------------------- */
+/* Session view                                                           */
+/* ---------------------------------------------------------------------- */
+
+let currentSlug = null;
+let elapsedSec = 0;
+let budgetSec = 0;
+let timerInterval = null;
+let timerRunning = false;
+let selectedOutcome = null;
+let selectedDiff = null;
+
+function formatMMSS(totalSec) {
+  const sign = totalSec < 0 ? "+" : "";
+  const abs = Math.abs(totalSec);
+  const m = Math.floor(abs / 60);
+  const s = abs % 60;
+  return `${sign}${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function updateTimerDisplay() {
+  const remaining = budgetSec - elapsedSec;
+  els.timerDisplay.textContent = formatMMSS(remaining);
+  els.timerDisplay.classList.toggle("over", remaining < 0);
+}
+
+function stopTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = null;
+  timerRunning = false;
+  els.timerStartBtn.textContent = "Start";
+}
+
+function openSession(slug, opts = {}) {
+  currentSlug = slug;
+  const info = PROBLEM_INDEX[slug];
+  if (!info) return;
+
+  if (!opts.noOpenTab) {
+    window.open(info.url, "_blank", "noopener");
+  }
+
+  const p = getProgress(slug);
+  els.sessionHead.innerHTML = `
+    <span class="pattern-tag">${info.patternName}</span>
+    <span class="diff-tag ${info.difficulty}">${info.difficulty}</span>
+  `;
+  els.sessionTitle.textContent = info.title;
+  els.openLeetcodeBtn.href = info.url;
+
+  budgetSec = (TIMER_MIN[info.difficulty] || 30) * 60;
+  elapsedSec = 0;
+  stopTimer();
+  updateTimerDisplay();
+
+  if (p.attempts.length > 0) {
+    const last = p.attempts[p.attempts.length - 1];
+    els.priorNoteBlock.innerHTML = last.note
+      ? `<div class="prior-note"><b>Ostatnia notatka (${last.date}):</b> ${escapeHtml(last.note)}</div>`
+      : "";
+  } else {
+    els.priorNoteBlock.innerHTML = "";
+  }
+
+  selectedOutcome = null;
+  selectedDiff = p.personalDifficulty;
+  els.outcomeForm.hidden = true;
+  els.finishBtn.hidden = false;
+  els.notesInput.value = "";
+  [...els.outcomeRow.children].forEach((b) => b.classList.remove("selected", "clean", "struggled", "failed"));
+  [...els.diffSelect.children].forEach((b) => b.classList.toggle("selected", b.dataset.diff === selectedDiff));
+  els.saveAttemptBtn.disabled = true;
+
+  renderAttemptsLog(p);
+
+  els.viewHome.hidden = true;
+  els.viewBrowse.hidden = true;
+  els.viewSession.hidden = false;
+}
+
+function renderAttemptsLog(p) {
+  if (p.attempts.length === 0) {
+    els.attemptsLog.innerHTML = "";
+    return;
+  }
+  const outcomeLabel = { clean: "✅ sprawnie", struggled: "🟡 ciężko", failed: "❌ nie rozwiązane" };
+  const rows = p.attempts
+    .slice()
+    .reverse()
+    .map(
+      (a) => `<div class="attempt-entry"><b>${a.date}</b> — ${outcomeLabel[a.outcome]}${a.timeSec ? " · " + Math.round(a.timeSec / 60) + " min" : ""}${a.note ? " — " + escapeHtml(a.note) : ""}</div>`
+    )
+    .join("");
+  els.attemptsLog.innerHTML = `<div class="field-label">Historia prób</div>${rows}`;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+els.timerStartBtn.addEventListener("click", () => {
+  if (timerRunning) {
+    stopTimer();
+    return;
+  }
+  timerRunning = true;
+  els.timerStartBtn.textContent = "Pauza";
+  timerInterval = setInterval(() => {
+    elapsedSec += 1;
+    updateTimerDisplay();
+  }, 1000);
+});
+
+els.timerResetBtn.addEventListener("click", () => {
+  stopTimer();
+  elapsedSec = 0;
+  updateTimerDisplay();
+});
+
+els.finishBtn.addEventListener("click", () => {
+  stopTimer();
+  els.outcomeForm.hidden = false;
+  els.finishBtn.hidden = true;
+});
+
+els.outcomeRow.addEventListener("click", (e) => {
+  const btn = e.target.closest(".outcome-btn");
+  if (!btn) return;
+  selectedOutcome = btn.dataset.outcome;
+  [...els.outcomeRow.children].forEach((b) => {
+    b.classList.remove("selected", "clean", "struggled", "failed");
+  });
+  btn.classList.add("selected", selectedOutcome);
+  els.saveAttemptBtn.disabled = false;
+});
+
+els.diffSelect.addEventListener("click", (e) => {
+  const btn = e.target.closest(".diff-opt");
+  if (!btn) return;
+  selectedDiff = btn.dataset.diff;
+  [...els.diffSelect.children].forEach((b) => b.classList.toggle("selected", b === btn));
+});
+
+els.cancelSaveBtn.addEventListener("click", () => {
+  els.outcomeForm.hidden = true;
+  els.finishBtn.hidden = false;
+});
+
+els.saveAttemptBtn.addEventListener("click", () => {
+  if (!selectedOutcome || !currentSlug) return;
+  const p = getProgress(currentSlug);
+  const attempt = {
+    date: todayStamp(),
+    outcome: selectedOutcome,
+    timeSec: elapsedSec || null,
+    note: els.notesInput.value.trim(),
+  };
+  p.attempts.push(attempt);
+  if (selectedDiff) p.personalDifficulty = selectedDiff;
+
+  let box = p.box || 0;
+  if (selectedOutcome === "clean") box = Math.min(BOX_INTERVAL_DAYS.length - 1, box + 1);
+  else if (selectedOutcome === "failed") box = 0;
+  p.box = box;
+  p.due = addDays(todayStamp(), BOX_INTERVAL_DAYS[box]);
+
+  progress[currentSlug] = p;
+  saveProgress();
+
+  showMainView(mainView === "browse" ? "browse" : "home");
+  renderAll();
+});
+
+els.backBtn.addEventListener("click", () => {
+  stopTimer();
+  showMainView(mainView);
+  renderAll();
+});
+
+/* ---------------------------------------------------------------------- */
+/* Nav + boot                                                              */
+/* ---------------------------------------------------------------------- */
+
+els.nav.addEventListener("click", (e) => {
+  const btn = e.target.closest(".nav-btn");
+  if (!btn) return;
+  showMainView(btn.dataset.view);
+  renderAll();
+});
+
+function renderAll() {
+  renderStatStrip();
+  if (mainView === "home") renderHome();
+  else renderBrowse();
+}
+
+loadState();
+showMainView("home");
+renderAll();

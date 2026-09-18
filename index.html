@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gridgrind — LeetCode pattern tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div class="brand">grid<span>grind</span></div>
+      <nav class="nav" id="nav">
+        <button class="nav-btn" data-view="home">Dziś</button>
+        <button class="nav-btn" data-view="browse">Patterny</button>
+      </nav>
+    </header>
+
+    <div class="stat-strip" id="statStrip"></div>
+
+    <!-- HOME VIEW -->
+    <section id="viewHome">
+      <h2 class="section-title" id="reviewHeading" hidden>Zaległe powtórki</h2>
+      <div class="review-list" id="reviewList"></div>
+
+      <h2 class="section-title">Następne zadanie</h2>
+      <div class="card suggest-card" id="suggestCard"></div>
+    </section>
+
+    <!-- BROWSE VIEW -->
+    <section id="viewBrowse" hidden>
+      <div id="patternList"></div>
+    </section>
+
+    <!-- SESSION VIEW -->
+    <section id="viewSession" hidden>
+      <button class="link-btn" id="backBtn">← wróć</button>
+      <div class="session-head" id="sessionHead"></div>
+      <h2 class="session-title" id="sessionTitle"></h2>
+
+      <div class="session-links">
+        <a class="btn" id="openLeetcodeBtn" target="_blank" rel="noopener">Otwórz na LeetCode ↗</a>
+      </div>
+
+      <div class="timer-block">
+        <div class="timer-display" id="timerDisplay">00:00</div>
+        <div class="timer-controls">
+          <button class="btn small" id="timerStartBtn">Start</button>
+          <button class="btn small ghost" id="timerResetBtn">Reset</button>
+        </div>
+      </div>
+
+      <div id="priorNoteBlock"></div>
+
+      <button class="btn primary" id="finishBtn">Zakończyłem — zapisz wynik</button>
+
+      <div id="outcomeForm" hidden>
+        <div class="field-label">Jak poszło?</div>
+        <div class="outcome-row" id="outcomeRow">
+          <button class="outcome-btn" data-outcome="clean">✅ Rozwiązane sprawnie</button>
+          <button class="outcome-btn" data-outcome="struggled">🟡 Rozwiązane, ale ciężko</button>
+          <button class="outcome-btn" data-outcome="failed">❌ Nie rozwiązane</button>
+        </div>
+
+        <div class="field-label">Poziom trudności dla Ciebie</div>
+        <div class="diff-select" id="diffSelect">
+          <button class="diff-opt" data-diff="easy">Łatwy</button>
+          <button class="diff-opt" data-diff="medium">Średni</button>
+          <button class="diff-opt" data-diff="hard">Trudny</button>
+        </div>
+
+        <div class="field-label">Co poszło źle / na co uważać</div>
+        <textarea class="notes" id="notesInput" placeholder="np. zapomniałem o unordered_map, pomyliłem push z push_back..."></textarea>
+
+        <div class="session-footer">
+          <button class="link-btn" id="cancelSaveBtn">anuluj</button>
+          <button class="btn primary" id="saveAttemptBtn">Zapisz</button>
+        </div>
+      </div>
+
+      <div class="attempts-log" id="attemptsLog"></div>
+    </section>
+
+    <p class="tip">easy/medium only na razie, hardy olane — jedno zadanie na sesję, timer to budżet czasu nie stoper egzekucyjny. dane trzymane lokalnie w przeglądarce.</p>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
