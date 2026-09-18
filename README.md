@@ -23,8 +23,25 @@ are filtered out for now — Easy/Medium only.
   tomorrow; a clean solve pushes it further out (1 → 2 → 4 → 8 → 16 → 30
   days). Anything due shows up at the top of "Dziś" before any new
   suggestion, so weak spots get cleared before moving on to new patterns.
-- **Everything is local**: progress lives in the browser's `localStorage`,
-  nothing is sent anywhere.
+- **Everything is local**: progress lives in the browser's `localStorage`.
+  Nothing is sent anywhere except to the optional local server below.
 
-No build step — open `index.html`, or serve the folder statically / via
-GitHub Pages.
+## Running it
+
+**Quick, no persistence to git**: just open `index.html` directly. Progress
+is saved to `localStorage` only — fine for a look around, but nothing lands
+in this repo, and it won't follow you to another browser or machine.
+
+**With auto-saved, git-trackable progress (recommended)**: double-click
+`Start gridgrind.command` (or run `python3 server.py`), which opens the app
+at `http://127.0.0.1:8765/`. From then on, every attempt/note/solution you
+save is also written straight to `data/progress.json` in this repo — no
+export step, nothing to remember. Commit that file whenever you want a
+checkpoint:
+
+```
+git add data/progress.json && git commit -m "progress update"
+```
+
+Requires only Python 3 (already on macOS). Works in any browser, including
+Firefox — it's a plain local HTTP server, not a browser-specific API.

@@ -134,6 +134,7 @@ function loadCustom() {
 }
 function saveCustom() {
   localStorage.setItem(CUSTOM_KEY, JSON.stringify(customProblems));
+  syncToServer();
 }
 function slugify(title) {
   const base = title
@@ -181,12 +182,29 @@ function loadState() {
   }
 }
 
+// When served from server.py (not opened as a bare file://), every save
+// also gets pushed straight to data/progress.json in the repo — nothing to
+// remember to export. localStorage stays as the always-on fallback/cache.
+let serverAvailable = false;
+function syncToServer() {
+  if (!serverAvailable) return;
+  fetch("/save", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ progress, customProblems, activePatternId }),
+  }).catch(() => {
+    serverAvailable = false;
+  });
+}
+
 function saveProgress() {
   localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+  syncToServer();
 }
 function saveActivePattern(id) {
   activePatternId = id;
   localStorage.setItem(ACTIVE_PATTERN_KEY, String(id));
+  syncToServer();
 }
 
 function getProgress(slug) {
@@ -923,6 +941,33 @@ function renderAll() {
   else renderBrowse();
 }
 
-loadState();
-showMainView("home");
-renderAll();
+async function boot() {
+  try {
+    const res = await fetch("/load");
+    if (res.ok) {
+      serverAvailable = true;
+      const data = await res.json();
+      if (data) {
+        progress = data.progress || {};
+        customProblems = data.customProblems || [];
+        for (const c of customProblems) PROBLEM_INDEX[c.slug] = { ...c, patternId: null };
+        activePatternId = data.activePatternId && PATTERNS.some((p) => p.id === data.activePatternId) ? data.activePatternId : 1;
+      } else {
+        // Server is up but data/progress.json doesn't exist yet — bootstrap
+        // from localStorage (or the seed), then push it to create the file.
+        loadState();
+      }
+    } else {
+      loadState();
+    }
+  } catch (e) {
+    // Opened as a plain file:// page, or server.py isn't running — fall
+    // back to localStorage only, exactly like before this feature existed.
+    serverAvailable = false;
+    loadState();
+  }
+  showMainView("home");
+  renderAll();
+}
+
+boot();
