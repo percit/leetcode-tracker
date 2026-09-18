@@ -109,35 +109,6 @@ body {
   padding: 18px 20px;
 }
 
-.review-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 30px;
-}
-
-.review-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--warn);
-  border-radius: 10px;
-  padding: 12px 16px;
-  cursor: pointer;
-  text-align: left;
-}
-.review-row:hover { border-color: var(--warn); }
-.review-row.overdue-hard { border-left-color: var(--bad); }
-
-.review-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.review-title { font-weight: 600; font-size: 14px; }
-.review-meta { font-size: 12px; color: var(--sub); }
-.review-days { font-family: var(--mono); font-size: 12px; color: var(--warn); white-space: nowrap; }
-.review-row.overdue-hard .review-days { color: var(--bad); }
-
 .empty-note { color: var(--sub); font-size: 13px; padding: 14px 0; }
 
 /* ---------- suggestion card ---------- */

@@ -243,6 +243,36 @@ function getDueReviews() {
   return out;
 }
 
+// The single most important thing to do right now: the most overdue review
+// if anything is due, otherwise the adaptive "next new problem" suggestion.
+function getFocusItem() {
+  const reviews = getDueReviews();
+  if (reviews.length > 0) {
+    const r = reviews[0];
+    return {
+      type: "review",
+      slug: r.slug,
+      title: r.title,
+      url: r.url,
+      difficulty: r.difficulty,
+      patternName: r.patternName,
+      overdueDays: r.overdueDays,
+      queueCount: reviews.length,
+    };
+  }
+  const suggestion = getSuggestion();
+  if (!suggestion) return null;
+  return {
+    type: "new",
+    slug: suggestion.problem.slug,
+    title: suggestion.problem.title,
+    url: suggestion.problem.url,
+    difficulty: suggestion.problem.difficulty,
+    patternName: suggestion.pattern.name,
+    queueCount: 0,
+  };
+}
+
 function overallStats() {
   let solved = 0;
   let total = 0;
@@ -292,8 +322,7 @@ const els = {
   viewHome: document.getElementById("viewHome"),
   viewBrowse: document.getElementById("viewBrowse"),
   viewSession: document.getElementById("viewSession"),
-  reviewHeading: document.getElementById("reviewHeading"),
-  reviewList: document.getElementById("reviewList"),
+  focusHeading: document.getElementById("focusHeading"),
   suggestCard: document.getElementById("suggestCard"),
   patternList: document.getElementById("patternList"),
   backBtn: document.getElementById("backBtn"),
@@ -341,41 +370,30 @@ function showMainView(name) {
 }
 
 function renderHome() {
-  const reviews = getDueReviews();
-  els.reviewHeading.hidden = reviews.length === 0;
-  els.reviewList.innerHTML = "";
-  reviews.forEach((r) => {
-    const row = document.createElement("button");
-    row.className = "review-row" + (r.overdueDays > 7 ? " overdue-hard" : "");
-    row.innerHTML = `
-      <div class="review-main">
-        <span class="review-title">${r.title}</span>
-        <span class="review-meta">${r.patternName} · ${r.difficulty}${r.personalDifficulty ? " · dla Ciebie: " + r.personalDifficulty : ""}</span>
-      </div>
-      <span class="review-days">${r.overdueDays === 0 ? "dziś" : r.overdueDays + "d spóźnione"}</span>
-    `;
-    row.addEventListener("click", () => openSession(r.slug));
-    els.reviewList.appendChild(row);
-  });
+  const focus = getFocusItem();
 
-  const suggestion = getSuggestion();
-  if (!suggestion) {
+  if (!focus) {
+    els.focusHeading.textContent = "Gotowe";
     els.suggestCard.innerHTML = `<p class="empty-note">Wszystkie zadania Easy/Medium ze wszystkich 41 patternów zaliczone. 🎉 Czas na Hard albo powtórki.</p>`;
     return;
   }
-  const { problem, pattern } = suggestion;
+
+  const isReview = focus.type === "review";
+  els.focusHeading.textContent = isReview ? "Zaległa powtórka" : "Następne zadanie";
+
   els.suggestCard.innerHTML = `
     <div class="suggest-top">
-      <span class="pattern-tag">${pattern.name}</span>
-      <span class="diff-tag ${problem.difficulty}">${problem.difficulty}</span>
+      <span class="pattern-tag">${focus.patternName}</span>
+      <span class="diff-tag ${focus.difficulty}">${focus.difficulty}</span>
+      ${isReview ? `<span class="diff-tag Hard">${focus.overdueDays === 0 ? "dziś" : focus.overdueDays + "d spóźnione"}</span>` : ""}
     </div>
-    <h3 class="suggest-title">${problem.title}</h3>
+    <h3 class="suggest-title">${focus.title}</h3>
     <div class="suggest-actions">
-      <button class="btn primary" id="startSuggestedBtn">Start (${TIMER_MIN[problem.difficulty]} min)</button>
+      <button class="btn primary" id="startSuggestedBtn">Start (${TIMER_MIN[focus.difficulty]} min)</button>
     </div>
-    ${reviews.length > 0 ? `<p class="warn-line">Masz ${reviews.length} zaległych powtórek — może najpierw je ogarnij?</p>` : ""}
+    ${isReview && focus.queueCount > 1 ? `<p class="warn-line">+ ${focus.queueCount - 1} kolejnych w kolejce — po zapisaniu wyniku zobaczysz następne.</p>` : ""}
   `;
-  document.getElementById("startSuggestedBtn").addEventListener("click", () => openSession(problem.slug));
+  document.getElementById("startSuggestedBtn").addEventListener("click", () => openSession(focus.slug));
 }
 
 function statusChipFor(slug) {
