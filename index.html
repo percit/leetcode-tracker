@@ -29,6 +29,31 @@
 
     <!-- BROWSE VIEW -->
     <section id="viewBrowse" hidden>
+      <div class="session-footer">
+        <button class="link-btn" id="addCustomToggle">+ dodaj własne zadanie</button>
+        <button class="link-btn" id="exportAllBtn">⬇ eksportuj wszystko do Markdown</button>
+      </div>
+
+      <div class="card" id="addCustomForm" hidden>
+        <div class="field-label">Tytuł</div>
+        <input class="text-input" id="customTitle" placeholder="np. Design a rate limiter">
+        <div class="field-label">Link (LeetCode / inne, opcjonalnie)</div>
+        <input class="text-input" id="customUrl" placeholder="https://...">
+        <div class="field-label">Trudność</div>
+        <div class="diff-select" id="customDiffSelect">
+          <button class="diff-opt" data-diff="Easy">Easy</button>
+          <button class="diff-opt" data-diff="Medium">Medium</button>
+          <button class="diff-opt" data-diff="Hard">Hard</button>
+        </div>
+        <div class="field-label">Grupa / pattern (dowolna nazwa)</div>
+        <input class="text-input" id="customPattern" placeholder="np. Własne / spoza listy" value="Własne zadania">
+        <div class="session-footer">
+          <button class="link-btn" id="cancelCustomBtn">anuluj</button>
+          <button class="btn primary" id="saveCustomBtn">Dodaj</button>
+        </div>
+      </div>
+
+      <div id="customList"></div>
       <div id="patternList"></div>
     </section>
 
@@ -72,6 +97,9 @@
         <div class="field-label">Co poszło źle / na co uważać</div>
         <textarea class="notes" id="notesInput" placeholder="np. zapomniałem o unordered_map, pomyliłem push z push_back..."></textarea>
 
+        <div class="field-label">Kod rozwiązania (opcjonalnie)</div>
+        <textarea class="notes code-input" id="codeInput" placeholder="wklej swoje rozwiązanie z tej próby..."></textarea>
+
         <div class="session-footer">
           <button class="link-btn" id="cancelSaveBtn">anuluj</button>
           <button class="btn primary" id="saveAttemptBtn">Zapisz</button>
@@ -79,6 +107,19 @@
       </div>
 
       <div class="attempts-log" id="attemptsLog"></div>
+
+      <div class="ideal-block">
+        <div class="field-label">Idealne rozwiązanie (referencja, niezależnie od prób)</div>
+        <textarea class="notes code-input" id="idealInput" placeholder="wklej tu optymalne rozwiązanie, np. z LeetCode discuss/editorial, do porównania na przyszłość..."></textarea>
+        <div class="session-footer">
+          <span></span>
+          <button class="btn small" id="saveIdealBtn">Zapisz idealne rozwiązanie</button>
+        </div>
+      </div>
+
+      <div class="session-footer">
+        <button class="link-btn" id="exportOneBtn">⬇ eksportuj to zadanie do Markdown</button>
+      </div>
     </section>
 
     <p class="tip">easy/medium only na razie, hardy olane — jedno zadanie na sesję, timer to budżet czasu nie stoper egzekucyjny. dane trzymane lokalnie w przeglądarce.<br>lista zadań: <a class="link-btn" href="https://github.com/Automedon/ultimate-leetcode-patterns" target="_blank" rel="noopener">Automedon/ultimate-leetcode-patterns</a></p>

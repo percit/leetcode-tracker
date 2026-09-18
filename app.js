@@ -10,6 +10,7 @@ const BOX_INTERVAL_DAYS = [1, 2, 4, 8, 16, 30]; // Leitner box -> days until due
 
 const PROGRESS_KEY = "gridgrind_progress_v1";
 const ACTIVE_PATTERN_KEY = "gridgrind_active_pattern_v1";
+const CUSTOM_KEY = "gridgrind_custom_v1";
 
 /* ---------------------------------------------------------------------- */
 /* Seed: real history already logged by hand in the obsidian-vault notes  */
@@ -122,6 +123,32 @@ function daysBetween(fromStr, toStr) {
 
 let progress = {};
 let activePatternId = 1;
+let customProblems = [];
+
+function loadCustom() {
+  try {
+    return JSON.parse(localStorage.getItem(CUSTOM_KEY)) || [];
+  } catch (e) {
+    return [];
+  }
+}
+function saveCustom() {
+  localStorage.setItem(CUSTOM_KEY, JSON.stringify(customProblems));
+}
+function slugify(title) {
+  const base = title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  let slug = base || "custom";
+  let n = 1;
+  while (PROBLEM_INDEX[slug] || customProblems.some((c) => c.slug === slug)) {
+    n += 1;
+    slug = `${base}-${n}`;
+  }
+  return slug;
+}
 
 function loadState() {
   try {
@@ -131,6 +158,11 @@ function loadState() {
   }
   const savedPattern = Number(localStorage.getItem(ACTIVE_PATTERN_KEY));
   activePatternId = savedPattern && PATTERNS.some((p) => p.id === savedPattern) ? savedPattern : 1;
+
+  customProblems = loadCustom();
+  for (const c of customProblems) {
+    PROBLEM_INDEX[c.slug] = { ...c, patternId: null, patternName: c.patternName };
+  }
 
   if (Object.keys(progress).length === 0) {
     // First run: seed with real, already-logged history for pattern 1.
@@ -325,6 +357,15 @@ const els = {
   focusHeading: document.getElementById("focusHeading"),
   suggestCard: document.getElementById("suggestCard"),
   patternList: document.getElementById("patternList"),
+  customList: document.getElementById("customList"),
+  addCustomToggle: document.getElementById("addCustomToggle"),
+  addCustomForm: document.getElementById("addCustomForm"),
+  customTitle: document.getElementById("customTitle"),
+  customUrl: document.getElementById("customUrl"),
+  customDiffSelect: document.getElementById("customDiffSelect"),
+  customPattern: document.getElementById("customPattern"),
+  cancelCustomBtn: document.getElementById("cancelCustomBtn"),
+  saveCustomBtn: document.getElementById("saveCustomBtn"),
   backBtn: document.getElementById("backBtn"),
   sessionHead: document.getElementById("sessionHead"),
   sessionTitle: document.getElementById("sessionTitle"),
@@ -338,9 +379,14 @@ const els = {
   outcomeRow: document.getElementById("outcomeRow"),
   diffSelect: document.getElementById("diffSelect"),
   notesInput: document.getElementById("notesInput"),
+  codeInput: document.getElementById("codeInput"),
   cancelSaveBtn: document.getElementById("cancelSaveBtn"),
   saveAttemptBtn: document.getElementById("saveAttemptBtn"),
   attemptsLog: document.getElementById("attemptsLog"),
+  idealInput: document.getElementById("idealInput"),
+  saveIdealBtn: document.getElementById("saveIdealBtn"),
+  exportOneBtn: document.getElementById("exportOneBtn"),
+  exportAllBtn: document.getElementById("exportAllBtn"),
 };
 
 let expandedPatterns = new Set();
@@ -408,7 +454,38 @@ function statusChipFor(slug) {
   return { cls: "new", label: "w trakcie" };
 }
 
+function renderCustomList() {
+  if (customProblems.length === 0) {
+    els.customList.innerHTML = "";
+    return;
+  }
+  const rows = customProblems
+    .map((c) => {
+      const chip = statusChipFor(c.slug);
+      return `
+        <div class="problem-row" data-slug="${c.slug}">
+          <span class="problem-left">
+            <span class="diff-tag ${c.difficulty}">${c.difficulty[0]}</span>
+            <span class="problem-title">${c.title}</span>
+          </span>
+          <span class="status-chip ${chip.cls}">${chip.label}</span>
+        </div>
+      `;
+    })
+    .join("");
+  els.customList.innerHTML = `
+    <div class="pattern-item">
+      <div class="pattern-head"><span class="pattern-name">Własne zadania</span></div>
+      <div class="problem-list">${rows}</div>
+    </div>
+  `;
+  els.customList.querySelectorAll(".problem-row").forEach((row) => {
+    row.addEventListener("click", () => openSession(row.dataset.slug));
+  });
+}
+
 function renderBrowse() {
+  renderCustomList();
   els.patternList.innerHTML = "";
   PATTERNS.forEach((pattern) => {
     const stats = patternStats(pattern);
@@ -495,7 +572,7 @@ function openSession(slug, opts = {}) {
   const info = PROBLEM_INDEX[slug];
   if (!info) return;
 
-  if (!opts.noOpenTab) {
+  if (!opts.noOpenTab && info.url) {
     window.open(info.url, "_blank", "noopener");
   }
 
@@ -505,7 +582,8 @@ function openSession(slug, opts = {}) {
     <span class="diff-tag ${info.difficulty}">${info.difficulty}</span>
   `;
   els.sessionTitle.textContent = info.title;
-  els.openLeetcodeBtn.href = info.url;
+  els.openLeetcodeBtn.href = info.url || "#";
+  els.openLeetcodeBtn.style.display = info.url ? "" : "none";
 
   budgetSec = (TIMER_MIN[info.difficulty] || 30) * 60;
   elapsedSec = 0;
@@ -526,9 +604,12 @@ function openSession(slug, opts = {}) {
   els.outcomeForm.hidden = true;
   els.finishBtn.hidden = false;
   els.notesInput.value = "";
+  els.codeInput.value = "";
   [...els.outcomeRow.children].forEach((b) => b.classList.remove("selected", "clean", "struggled", "failed"));
   [...els.diffSelect.children].forEach((b) => b.classList.toggle("selected", b.dataset.diff === selectedDiff));
   els.saveAttemptBtn.disabled = true;
+
+  els.idealInput.value = p.idealSolution || "";
 
   renderAttemptsLog(p);
 
@@ -546,9 +627,12 @@ function renderAttemptsLog(p) {
   const rows = p.attempts
     .slice()
     .reverse()
-    .map(
-      (a) => `<div class="attempt-entry"><b>${a.date}</b> — ${outcomeLabel[a.outcome]}${a.timeSec ? " · " + Math.round(a.timeSec / 60) + " min" : ""}${a.note ? " — " + escapeHtml(a.note) : ""}</div>`
-    )
+    .map((a) => {
+      const codeBlock = a.code
+        ? `<details class="code-details"><summary>kod</summary><pre class="code-pre">${escapeHtml(a.code)}</pre></details>`
+        : "";
+      return `<div class="attempt-entry"><b>${a.date}</b> — ${outcomeLabel[a.outcome]}${a.timeSec ? " · " + Math.round(a.timeSec / 60) + " min" : ""}${a.note ? " — " + escapeHtml(a.note) : ""}${codeBlock}</div>`;
+    })
     .join("");
   els.attemptsLog.innerHTML = `<div class="field-label">Historia prób</div>${rows}`;
 }
@@ -613,6 +697,7 @@ els.saveAttemptBtn.addEventListener("click", () => {
     outcome: selectedOutcome,
     timeSec: elapsedSec || null,
     note: els.notesInput.value.trim(),
+    code: els.codeInput.value.trim() || null,
   };
   p.attempts.push(attempt);
   if (selectedDiff) p.personalDifficulty = selectedDiff;
@@ -634,6 +719,139 @@ els.backBtn.addEventListener("click", () => {
   stopTimer();
   showMainView(mainView);
   renderAll();
+});
+
+els.saveIdealBtn.addEventListener("click", () => {
+  if (!currentSlug) return;
+  const p = getProgress(currentSlug);
+  p.idealSolution = els.idealInput.value.trim() || null;
+  progress[currentSlug] = p;
+  saveProgress();
+  els.saveIdealBtn.textContent = "Zapisano ✓";
+  setTimeout(() => {
+    els.saveIdealBtn.textContent = "Zapisz idealne rozwiązanie";
+  }, 1200);
+});
+
+/* ---------------------------------------------------------------------- */
+/* Export to Obsidian-style Markdown                                      */
+/* ---------------------------------------------------------------------- */
+
+const OUTCOME_MD_LABEL = { clean: "sprawnie", struggled: "ciężko", failed: "nie rozwiązane" };
+
+function buildProblemMarkdown(slug) {
+  const info = PROBLEM_INDEX[slug];
+  const p = progress[slug];
+  if (!info || !p) return "";
+
+  let md = `### [${info.title}](${info.url})\n`;
+  md += `- pattern: ${info.patternName} · trudność: ${info.difficulty}${p.personalDifficulty ? " · dla mnie: " + p.personalDifficulty : ""}\n`;
+  for (const a of p.attempts) {
+    const label = OUTCOME_MD_LABEL[a.outcome] || a.outcome;
+    const mins = a.timeSec ? ` (${Math.round(a.timeSec / 60)} min)` : "";
+    const note = a.note ? ` — ${a.note}` : "";
+    md += `- ${a.date}: ${label}${mins}${note}\n`;
+  }
+  md += "\n";
+
+  const withCode = p.attempts.filter((a) => a.code);
+  if (withCode.length > 0) {
+    const latest = withCode[withCode.length - 1];
+    md += "```\n" + latest.code + "\n```\n\n";
+    if (withCode.length > 1) {
+      const first = withCode[0];
+      md += `wcześniejsza wersja (${first.date}):\n\`\`\`\n${first.code}\n\`\`\`\n\n`;
+    }
+  }
+  if (p.idealSolution) {
+    md += "idealne rozwiązanie:\n```\n" + p.idealSolution + "\n```\n\n";
+  }
+  return md;
+}
+
+function downloadText(filename, text) {
+  const blob = new Blob([text], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+els.exportOneBtn.addEventListener("click", () => {
+  if (!currentSlug) return;
+  downloadText(`${currentSlug}.md`, buildProblemMarkdown(currentSlug));
+});
+
+els.exportAllBtn.addEventListener("click", () => {
+  const slugs = Object.keys(progress).filter((slug) => progress[slug].attempts.length > 0 || progress[slug].idealSolution);
+  const byPattern = {};
+  for (const slug of slugs) {
+    const info = PROBLEM_INDEX[slug];
+    if (!info) continue;
+    if (!byPattern[info.patternId]) byPattern[info.patternId] = { name: info.patternName, slugs: [] };
+    byPattern[info.patternId].slugs.push(slug);
+  }
+  const patternIds = Object.keys(byPattern).map(Number).sort((a, b) => a - b);
+  let md = "";
+  for (const pid of patternIds) {
+    md += `## ${byPattern[pid].name}\n\n`;
+    for (const slug of byPattern[pid].slugs) md += buildProblemMarkdown(slug);
+  }
+  downloadText("gridgrind-export.md", md || "Brak zapisanych prób.\n");
+});
+
+/* ---------------------------------------------------------------------- */
+/* Manually adding a problem that isn't in the seeded pattern list         */
+/* ---------------------------------------------------------------------- */
+
+let selectedCustomDiff = "Easy";
+
+function resetCustomForm() {
+  els.customTitle.value = "";
+  els.customUrl.value = "";
+  els.customPattern.value = "Własne zadania";
+  selectedCustomDiff = "Easy";
+  [...els.customDiffSelect.children].forEach((b) => b.classList.toggle("selected", b.dataset.diff === selectedCustomDiff));
+}
+
+els.addCustomToggle.addEventListener("click", () => {
+  const showing = !els.addCustomForm.hidden;
+  els.addCustomForm.hidden = showing;
+  if (!showing) resetCustomForm();
+});
+
+els.cancelCustomBtn.addEventListener("click", () => {
+  els.addCustomForm.hidden = true;
+});
+
+els.customDiffSelect.addEventListener("click", (e) => {
+  const btn = e.target.closest(".diff-opt");
+  if (!btn) return;
+  selectedCustomDiff = btn.dataset.diff;
+  [...els.customDiffSelect.children].forEach((b) => b.classList.toggle("selected", b === btn));
+});
+
+els.saveCustomBtn.addEventListener("click", () => {
+  const title = els.customTitle.value.trim();
+  if (!title) return;
+  const slug = slugify(title);
+  const custom = {
+    slug,
+    title,
+    url: els.customUrl.value.trim() || null,
+    difficulty: selectedCustomDiff,
+    patternName: els.customPattern.value.trim() || "Własne zadania",
+  };
+  customProblems.push(custom);
+  saveCustom();
+  PROBLEM_INDEX[slug] = { ...custom, patternId: null };
+  els.addCustomForm.hidden = true;
+  resetCustomForm();
+  renderBrowse();
 });
 
 /* ---------------------------------------------------------------------- */

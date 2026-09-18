@@ -348,6 +348,31 @@ textarea.notes {
 }
 textarea.notes:focus { outline: none; border-color: var(--accent); }
 
+.text-input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  padding: 9px 12px;
+}
+.text-input:focus { outline: none; border-color: var(--accent); }
+
+textarea.code-input {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  min-height: 120px;
+  white-space: pre;
+}
+
+.ideal-block {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--border);
+}
+
 .prior-note {
   font-size: 12.5px;
   color: var(--sub);
@@ -379,6 +404,25 @@ textarea.notes:focus { outline: none; border-color: var(--accent); }
 }
 .attempt-entry:last-child { border-bottom: none; }
 .attempt-entry b { color: var(--ink); }
+
+.code-details { margin-top: 6px; }
+.code-details summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.code-pre {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 8px 0 0;
+  overflow-x: auto;
+  white-space: pre;
+}
 
 .tip {
   color: var(--sub-2);
