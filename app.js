@@ -373,8 +373,8 @@ const els = {
   timerDisplay: document.getElementById("timerDisplay"),
   timerStartBtn: document.getElementById("timerStartBtn"),
   timerResetBtn: document.getElementById("timerResetBtn"),
-  priorNoteBlock: document.getElementById("priorNoteBlock"),
   finishBtn: document.getElementById("finishBtn"),
+  savedNote: document.getElementById("savedNote"),
   outcomeForm: document.getElementById("outcomeForm"),
   outcomeRow: document.getElementById("outcomeRow"),
   diffSelect: document.getElementById("diffSelect"),
@@ -382,11 +382,16 @@ const els = {
   codeInput: document.getElementById("codeInput"),
   cancelSaveBtn: document.getElementById("cancelSaveBtn"),
   saveAttemptBtn: document.getElementById("saveAttemptBtn"),
+  postAttemptBlock: document.getElementById("postAttemptBlock"),
   attemptsLog: document.getElementById("attemptsLog"),
   idealInput: document.getElementById("idealInput"),
+  idealUncertain: document.getElementById("idealUncertain"),
   saveIdealBtn: document.getElementById("saveIdealBtn"),
   exportOneBtn: document.getElementById("exportOneBtn"),
   exportAllBtn: document.getElementById("exportAllBtn"),
+  exportJsonBtn: document.getElementById("exportJsonBtn"),
+  importJsonBtn: document.getElementById("importJsonBtn"),
+  importJsonFile: document.getElementById("importJsonFile"),
 };
 
 let expandedPatterns = new Set();
@@ -590,19 +595,14 @@ function openSession(slug, opts = {}) {
   stopTimer();
   updateTimerDisplay();
 
-  if (p.attempts.length > 0) {
-    const last = p.attempts[p.attempts.length - 1];
-    els.priorNoteBlock.innerHTML = last.note
-      ? `<div class="prior-note"><b>Ostatnia notatka (${last.date}):</b> ${escapeHtml(last.note)}</div>`
-      : "";
-  } else {
-    els.priorNoteBlock.innerHTML = "";
-  }
-
+  // History, and the reference solution, stay hidden until this attempt is
+  // saved — seeing your own past notes before trying biases the attempt.
   selectedOutcome = null;
   selectedDiff = p.personalDifficulty;
   els.outcomeForm.hidden = true;
   els.finishBtn.hidden = false;
+  els.savedNote.hidden = true;
+  els.postAttemptBlock.hidden = true;
   els.notesInput.value = "";
   els.codeInput.value = "";
   [...els.outcomeRow.children].forEach((b) => b.classList.remove("selected", "clean", "struggled", "failed"));
@@ -610,6 +610,7 @@ function openSession(slug, opts = {}) {
   els.saveAttemptBtn.disabled = true;
 
   els.idealInput.value = p.idealSolution || "";
+  els.idealUncertain.checked = !!p.idealSolutionUncertain;
 
   renderAttemptsLog(p);
 
@@ -711,8 +712,12 @@ els.saveAttemptBtn.addEventListener("click", () => {
   progress[currentSlug] = p;
   saveProgress();
 
-  showMainView(mainView === "browse" ? "browse" : "home");
-  renderAll();
+  // Stay on the session view and reveal history/reference now that this
+  // attempt is locked in — don't auto-navigate away.
+  els.outcomeForm.hidden = true;
+  els.savedNote.hidden = false;
+  els.postAttemptBlock.hidden = false;
+  renderAttemptsLog(p);
 });
 
 els.backBtn.addEventListener("click", () => {
@@ -725,11 +730,12 @@ els.saveIdealBtn.addEventListener("click", () => {
   if (!currentSlug) return;
   const p = getProgress(currentSlug);
   p.idealSolution = els.idealInput.value.trim() || null;
+  p.idealSolutionUncertain = els.idealUncertain.checked;
   progress[currentSlug] = p;
   saveProgress();
   els.saveIdealBtn.textContent = "Zapisano ✓";
   setTimeout(() => {
-    els.saveIdealBtn.textContent = "Zapisz idealne rozwiązanie";
+    els.saveIdealBtn.textContent = "Zapisz";
   }, 1200);
 });
 
@@ -744,7 +750,7 @@ function buildProblemMarkdown(slug) {
   const p = progress[slug];
   if (!info || !p) return "";
 
-  let md = `### [${info.title}](${info.url})\n`;
+  let md = info.url ? `### [${info.title}](${info.url})\n` : `### ${info.title}\n`;
   md += `- pattern: ${info.patternName} · trudność: ${info.difficulty}${p.personalDifficulty ? " · dla mnie: " + p.personalDifficulty : ""}\n`;
   for (const a of p.attempts) {
     const label = OUTCOME_MD_LABEL[a.outcome] || a.outcome;
@@ -764,13 +770,16 @@ function buildProblemMarkdown(slug) {
     }
   }
   if (p.idealSolution) {
-    md += "idealne rozwiązanie:\n```\n" + p.idealSolution + "\n```\n\n";
+    const label = p.idealSolutionUncertain
+      ? "najlepsze znane rozwiązanie (niepewne czy optymalne)"
+      : "idealne rozwiązanie";
+    md += `${label}:\n\`\`\`\n${p.idealSolution}\n\`\`\`\n\n`;
   }
   return md;
 }
 
-function downloadText(filename, text) {
-  const blob = new Blob([text], { type: "text/markdown" });
+function downloadText(filename, text, mime = "text/markdown") {
+  const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -788,20 +797,63 @@ els.exportOneBtn.addEventListener("click", () => {
 
 els.exportAllBtn.addEventListener("click", () => {
   const slugs = Object.keys(progress).filter((slug) => progress[slug].attempts.length > 0 || progress[slug].idealSolution);
+  // Group key sorts numbered patterns in order, custom groups (patternId
+  // null) last — plain Number(patternId) breaks for those, so use strings.
   const byPattern = {};
   for (const slug of slugs) {
     const info = PROBLEM_INDEX[slug];
     if (!info) continue;
-    if (!byPattern[info.patternId]) byPattern[info.patternId] = { name: info.patternName, slugs: [] };
-    byPattern[info.patternId].slugs.push(slug);
+    const key = info.patternId != null ? String(info.patternId).padStart(3, "0") : "zzz-" + info.patternName;
+    if (!byPattern[key]) byPattern[key] = { name: info.patternName, slugs: [] };
+    byPattern[key].slugs.push(slug);
   }
-  const patternIds = Object.keys(byPattern).map(Number).sort((a, b) => a - b);
+  const keys = Object.keys(byPattern).sort();
   let md = "";
-  for (const pid of patternIds) {
-    md += `## ${byPattern[pid].name}\n\n`;
-    for (const slug of byPattern[pid].slugs) md += buildProblemMarkdown(slug);
+  for (const key of keys) {
+    md += `## ${byPattern[key].name}\n\n`;
+    for (const slug of byPattern[key].slugs) md += buildProblemMarkdown(slug);
   }
   downloadText("gridgrind-export.md", md || "Brak zapisanych prób.\n");
+});
+
+/* ---------------------------------------------------------------------- */
+/* JSON snapshot — the only way progress actually gets into git, since a  */
+/* browser page can't write into the repo directly.                       */
+/* ---------------------------------------------------------------------- */
+
+els.exportJsonBtn.addEventListener("click", () => {
+  const snapshot = { progress, customProblems, activePatternId, exportedAt: new Date().toISOString() };
+  downloadText("gridgrind-progress.json", JSON.stringify(snapshot, null, 2), "application/json");
+});
+
+els.importJsonBtn.addEventListener("click", () => {
+  els.importJsonFile.click();
+});
+
+els.importJsonFile.addEventListener("change", () => {
+  const file = els.importJsonFile.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try {
+      data = JSON.parse(reader.result);
+    } catch (e) {
+      alert("Nie udało się wczytać pliku — to nie jest poprawny JSON.");
+      return;
+    }
+    if (!confirm("To nadpisze cały obecny progress w tej przeglądarce danymi z pliku. Kontynuować?")) return;
+    progress = data.progress || {};
+    customProblems = data.customProblems || [];
+    for (const c of customProblems) PROBLEM_INDEX[c.slug] = { ...c, patternId: null };
+    saveProgress();
+    saveCustom();
+    if (data.activePatternId) saveActivePattern(data.activePatternId);
+    els.importJsonFile.value = "";
+    showMainView("home");
+    renderAll();
+  };
+  reader.readAsText(file);
 });
 
 /* ---------------------------------------------------------------------- */

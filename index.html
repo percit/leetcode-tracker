@@ -33,6 +33,13 @@
         <button class="link-btn" id="addCustomToggle">+ dodaj własne zadanie</button>
         <button class="link-btn" id="exportAllBtn">⬇ eksportuj wszystko do Markdown</button>
       </div>
+      <div class="session-footer">
+        <button class="link-btn" id="exportJsonBtn">💾 eksportuj progress.json (do commita)</button>
+        <span>
+          <button class="link-btn" id="importJsonBtn">📥 importuj progress.json</button>
+          <input type="file" id="importJsonFile" accept="application/json" hidden>
+        </span>
+      </div>
 
       <div class="card" id="addCustomForm" hidden>
         <div class="field-label">Tytuł</div>
@@ -75,9 +82,8 @@
         </div>
       </div>
 
-      <div id="priorNoteBlock"></div>
-
       <button class="btn primary" id="finishBtn">Zakończyłem — zapisz wynik</button>
+      <p class="empty-note" id="savedNote" hidden>Zapisano. Historia prób i idealne rozwiązanie poniżej.</p>
 
       <div id="outcomeForm" hidden>
         <div class="field-label">Jak poszło?</div>
@@ -106,19 +112,25 @@
         </div>
       </div>
 
-      <div class="attempts-log" id="attemptsLog"></div>
+      <div id="postAttemptBlock" hidden>
+        <div class="attempts-log" id="attemptsLog"></div>
 
-      <div class="ideal-block">
-        <div class="field-label">Idealne rozwiązanie (referencja, niezależnie od prób)</div>
-        <textarea class="notes code-input" id="idealInput" placeholder="wklej tu optymalne rozwiązanie, np. z LeetCode discuss/editorial, do porównania na przyszłość..."></textarea>
-        <div class="session-footer">
-          <span></span>
-          <button class="btn small" id="saveIdealBtn">Zapisz idealne rozwiązanie</button>
+        <div class="ideal-block">
+          <div class="field-label">Najlepsze znane rozwiązanie (referencja, niezależnie od prób)</div>
+          <textarea class="notes code-input" id="idealInput" placeholder="wklej tu rozwiązanie do porównania na przyszłość — Twoje, z discuss/editorial, cokolwiek..."></textarea>
+          <label class="checkbox-label">
+            <input type="checkbox" id="idealUncertain">
+            nie wiem czy to najbardziej optymalne rozwiązanie
+          </label>
+          <div class="session-footer">
+            <span></span>
+            <button class="btn small" id="saveIdealBtn">Zapisz</button>
+          </div>
         </div>
-      </div>
 
-      <div class="session-footer">
-        <button class="link-btn" id="exportOneBtn">⬇ eksportuj to zadanie do Markdown</button>
+        <div class="session-footer">
+          <button class="link-btn" id="exportOneBtn">⬇ eksportuj to zadanie do Markdown</button>
+        </div>
       </div>
     </section>
 
