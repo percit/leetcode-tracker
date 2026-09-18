@@ -1,3 +1,7 @@
+/* Problem list source: https://github.com/Automedon/ultimate-leetcode-patterns
+ * (41 patterns, 20 problems each, ranked by interview frequency). Hard
+ * problems are dropped here — this app only tracks Easy/Medium for now.
+ */
 const PATTERNS = [
   {
     "id": 1,
