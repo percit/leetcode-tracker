@@ -203,7 +203,7 @@ function syncToServer() {
    contents API with a fine-grained token kept only in this browser's
    localStorage. Without a token the page still works, saving to
    localStorage only. */
-const GH = { owner: "percit", repo: "leetcode-tracker", path: "data/progress.json", branch: "main" };
+const GH = { owner: "percit", repo: "leetcode-tracker", path: "data/progress.json", branch: "master" };
 const GH_TOKEN_KEY = "gridgrind.ghToken";
 let ghMode = false;
 let ghSha = null;
