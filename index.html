@@ -17,6 +17,7 @@
         <button class="nav-btn" data-view="home">Dziś</button>
         <button class="nav-btn" data-view="browse">Patterny</button>
       </nav>
+      <span class="sync-status" id="syncStatus"></span>
     </header>
 
     <div class="stat-strip" id="statStrip"></div>
@@ -35,6 +36,7 @@
       </div>
       <div class="session-footer">
         <button class="link-btn" id="exportJsonBtn">💾 eksportuj progress.json (do commita)</button>
+        <button class="link-btn" id="ghTokenBtn" hidden>🔑 token GitHub (zapis z przeglądarki)</button>
         <span>
           <button class="link-btn" id="importJsonBtn">📥 importuj progress.json</button>
           <input type="file" id="importJsonFile" accept="application/json" hidden>

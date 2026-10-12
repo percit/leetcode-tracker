@@ -448,3 +448,6 @@ textarea.code-input {
   .timer-display { font-size: 32px; }
   .pattern-bar { width: 60px; }
 }
+
+.sync-status { font-size: 12px; opacity: .7; margin-left: auto; padding-left: 12px; white-space: nowrap; }
+.sync-status.err { color: #e5534b; opacity: 1; }

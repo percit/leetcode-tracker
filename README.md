@@ -45,3 +45,19 @@ git add data/progress.json && git commit -m "progress update"
 
 Requires only Python 3 (already on macOS). Works in any browser, including
 Firefox — it's a plain local HTTP server, not a browser-specific API.
+
+## Online (GitHub Pages) — e.g. from work, nothing to install
+
+The same app runs at **https://percit.github.io/leetcode-tracker/**. There it
+reads `data/progress.json` straight from this repo and, once you add a token,
+writes every save back to the repo (a commit per save, debounced ~1.5 s).
+
+1. Create a fine-grained token: GitHub → Settings → Developer settings →
+   Fine-grained tokens → *Only select repositories: leetcode-tracker* →
+   Repository permissions → *Contents: Read and write*.
+2. On the page: Patterny → 🔑 token GitHub → paste. It's stored only in that
+   browser's localStorage.
+
+Without a token the page still works read-only from the repo + saves to
+localStorage. After practising on the web, `git pull` at home before using the
+local server so you don't overwrite the newer progress.

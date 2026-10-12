@@ -187,6 +187,7 @@ function loadState() {
 // remember to export. localStorage stays as the always-on fallback/cache.
 let serverAvailable = false;
 function syncToServer() {
+  ghScheduleSave();
   if (!serverAvailable) return;
   fetch("/save", {
     method: "POST",
@@ -195,6 +196,92 @@ function syncToServer() {
   }).catch(() => {
     serverAvailable = false;
   });
+}
+
+/* GitHub mode: when hosted on GitHub Pages (no server.py), progress is read
+   from data/progress.json in the repo and written back through the GitHub
+   contents API with a fine-grained token kept only in this browser's
+   localStorage. Without a token the page still works, saving to
+   localStorage only. */
+const GH = { owner: "percit", repo: "leetcode-tracker", path: "data/progress.json", branch: "main" };
+const GH_TOKEN_KEY = "gridgrind.ghToken";
+let ghMode = false;
+let ghSha = null;
+let ghTimer = null;
+
+function ghToken() {
+  try {
+    return localStorage.getItem(GH_TOKEN_KEY) || "";
+  } catch (e) {
+    return "";
+  }
+}
+function setSyncStatus(text, isError) {
+  const el = document.getElementById("syncStatus");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("err", !!isError);
+}
+function b64EncodeUtf8(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function b64DecodeUtf8(b64) {
+  const bin = atob(b64.replace(/\n/g, ""));
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+}
+function ghHeaders() {
+  const h = { Accept: "application/vnd.github+json" };
+  const t = ghToken();
+  if (t) h.Authorization = `Bearer ${t}`;
+  return h;
+}
+const GH_URL = `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path}`;
+
+async function ghLoad() {
+  const res = await fetch(`${GH_URL}?ref=${GH.branch}`, { headers: ghHeaders(), cache: "no-store" });
+  if (!res.ok) return null;
+  const j = await res.json();
+  ghSha = j.sha;
+  return JSON.parse(b64DecodeUtf8(j.content));
+}
+function ghScheduleSave() {
+  if (!ghMode) return;
+  if (!ghToken()) {
+    setSyncStatus("zapis tylko w tej przeglądarce — dodaj token GitHub", true);
+    return;
+  }
+  clearTimeout(ghTimer);
+  setSyncStatus("zapisuję…");
+  ghTimer = setTimeout(() => ghSave(true), 1500);
+}
+async function ghSave(retry) {
+  const snapshot = { progress, customProblems, activePatternId };
+  const body = {
+    message: `progress update (web) ${new Date().toISOString().slice(0, 16)}`,
+    content: b64EncodeUtf8(JSON.stringify(snapshot, null, 2) + "\n"),
+    branch: GH.branch,
+  };
+  if (ghSha) body.sha = ghSha;
+  try {
+    const res = await fetch(GH_URL, { method: "PUT", headers: { ...ghHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if ((res.status === 409 || res.status === 422) && retry) {
+      // File changed in the repo since we loaded it (e.g. saved from home) — refresh sha and retry once.
+      const cur = await fetch(`${GH_URL}?ref=${GH.branch}`, { headers: ghHeaders(), cache: "no-store" });
+      if (cur.ok) ghSha = (await cur.json()).sha;
+      return ghSave(false);
+    }
+    if (!res.ok) {
+      setSyncStatus(res.status === 401 || res.status === 403 ? "token odrzucony — sprawdź token GitHub" : `błąd zapisu (${res.status})`, true);
+      return;
+    }
+    ghSha = (await res.json()).content.sha;
+    setSyncStatus("zapisano w repo ✓");
+  } catch (e) {
+    setSyncStatus("brak połączenia — zapisane tylko lokalnie", true);
+  }
 }
 
 function saveProgress() {
@@ -408,6 +495,7 @@ const els = {
   exportOneBtn: document.getElementById("exportOneBtn"),
   exportAllBtn: document.getElementById("exportAllBtn"),
   exportJsonBtn: document.getElementById("exportJsonBtn"),
+  ghTokenBtn: document.getElementById("ghTokenBtn"),
   importJsonBtn: document.getElementById("importJsonBtn"),
   importJsonFile: document.getElementById("importJsonFile"),
 };
@@ -844,6 +932,21 @@ els.exportJsonBtn.addEventListener("click", () => {
   downloadText("gridgrind-progress.json", JSON.stringify(snapshot, null, 2), "application/json");
 });
 
+els.ghTokenBtn.addEventListener("click", () => {
+  const cur = ghToken();
+  const t = prompt(
+    "Wklej token GitHub (fine-grained, tylko repo leetcode-tracker, Contents: Read and write).\nZostaje tylko w tej przeglądarce. Puste = usuń token.",
+    cur ? "(token zapisany — wklej nowy albo zostaw puste, by usunąć)" : ""
+  );
+  if (t === null || t.startsWith("(token zapisany")) return;
+  try {
+    if (t.trim()) localStorage.setItem(GH_TOKEN_KEY, t.trim());
+    else localStorage.removeItem(GH_TOKEN_KEY);
+  } catch (e) {}
+  setSyncStatus(t.trim() ? "token zapisany ✓" : "token usunięty", !t.trim());
+  if (t.trim()) ghScheduleSave();
+});
+
 els.importJsonBtn.addEventListener("click", () => {
   els.importJsonFile.click();
 });
@@ -941,6 +1044,38 @@ function renderAll() {
   else renderBrowse();
 }
 
+async function bootGitHub() {
+  // Only on a real website (GitHub Pages), never for a local file:// page.
+  if (!/^https?:$/.test(location.protocol) || ["127.0.0.1", "localhost"].includes(location.hostname)) {
+    loadState();
+    return;
+  }
+  ghMode = true;
+  els.ghTokenBtn.hidden = false;
+  setSyncStatus("wczytuję z repo…");
+  let data = null;
+  try {
+    data = await ghLoad();
+  } catch (e) {
+    data = null;
+  }
+  if (data) {
+    progress = data.progress || {};
+    customProblems = data.customProblems || [];
+    for (const c of customProblems) PROBLEM_INDEX[c.slug] = { ...c, patternId: null };
+    activePatternId = data.activePatternId && PATTERNS.some((p) => p.id === data.activePatternId) ? data.activePatternId : 1;
+    try {
+      localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+      localStorage.setItem(CUSTOM_KEY, JSON.stringify(customProblems));
+      localStorage.setItem(ACTIVE_PATTERN_KEY, String(activePatternId));
+    } catch (e) {}
+    setSyncStatus(ghToken() ? "zsynchronizowane z repo ✓" : "tylko odczyt — dodaj token GitHub, żeby zapisywać", !ghToken());
+  } else {
+    loadState();
+    setSyncStatus("nie udało się wczytać z repo — używam danych z przeglądarki", true);
+  }
+}
+
 async function boot() {
   try {
     const res = await fetch("/load");
@@ -958,13 +1093,13 @@ async function boot() {
         loadState();
       }
     } else {
-      loadState();
+      await bootGitHub();
     }
   } catch (e) {
     // Opened as a plain file:// page, or server.py isn't running — fall
     // back to localStorage only, exactly like before this feature existed.
     serverAvailable = false;
-    loadState();
+    await bootGitHub();
   }
   showMainView("home");
   renderAll();

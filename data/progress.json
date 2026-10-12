@@ -1,0 +1,97 @@
+{
+  "progress": {
+    "ransom-note": {
+      "personalDifficulty": "easy",
+      "box": 3,
+      "due": "2026-09-07",
+      "attempts": [
+        {
+          "date": "2026-08-31",
+          "outcome": "clean",
+          "timeSec": null,
+          "note": ""
+        }
+      ]
+    },
+    "contains-duplicate": {
+      "personalDifficulty": "medium",
+      "box": 1,
+      "due": "2026-09-01",
+      "attempts": [
+        {
+          "date": "2026-08-31",
+          "outcome": "struggled",
+          "timeSec": null,
+          "note": "Pomyliłem: find() na unordered_map zwraca iterator, nie wartość. Pierwsze rozwiązanie działało, ale nieoptymalne pamięciowo (mapa zamiast setu)."
+        }
+      ]
+    },
+    "valid-anagram": {
+      "personalDifficulty": "medium",
+      "box": 1,
+      "due": "2026-09-01",
+      "attempts": [
+        {
+          "date": "2026-08-31",
+          "outcome": "struggled",
+          "timeSec": null,
+          "note": "Użyłem pełnej hash mapy do dodawania/odejmowania, a mogłem zwykłej tablicy 26 liter — mniejsze constrainty pozwalają na prostsze rozwiązanie."
+        }
+      ]
+    },
+    "longest-palindrome": {
+      "personalDifficulty": "medium",
+      "box": 1,
+      "due": "2026-09-01",
+      "attempts": [
+        {
+          "date": "2026-08-31",
+          "outcome": "struggled",
+          "timeSec": null,
+          "note": "Nie ogarnąłem od razu obsługi środkowego pojedynczego znaku przy nieparzystych długościach (np. 'aabccd' — kilka par plus jedna pojedyncza litera w środku)."
+        }
+      ]
+    },
+    "two-sum": {
+      "personalDifficulty": "hard",
+      "box": 0,
+      "due": "2026-08-31",
+      "attempts": [
+        {
+          "date": "2026-08-31",
+          "outcome": "failed",
+          "timeSec": null,
+          "note": "Zapomniałem o unordered_map w ogóle i jak robić find() na niej — nawet po podpowiedziach nie skończyłem zadania."
+        }
+      ]
+    },
+    "isomorphic-strings": {
+      "personalDifficulty": "hard",
+      "box": 0,
+      "due": "2026-08-31",
+      "attempts": [
+        {
+          "date": "2026-08-31",
+          "outcome": "struggled",
+          "timeSec": null,
+          "note": "Nie miałem pomysłu przez odwróconą kolejność mapowania; nawet po podpowiedzi użyłem hash mapy zamiast tablicy ASCII (256 znaków)."
+        }
+      ]
+    },
+    "word-pattern": {
+      "personalDifficulty": "hard",
+      "box": 0,
+      "due": "2026-08-31",
+      "attempts": [
+        {
+          "date": "2026-08-31",
+          "outcome": "struggled",
+          "timeSec": null,
+          "note": "Zapomniałem jak rozbić string ze spacjami na vector<string> (istringstream) i pomyliłem push z push_back. To niemal to samo rozwiązanie co Isomorphic Strings zrobione wcześniej."
+        }
+      ]
+    }
+  },
+  "customProblems": [],
+  "activePatternId": 1
+}
