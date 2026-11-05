@@ -14,6 +14,12 @@ are filtered out for now — Easy/Medium only.
   pattern (default: 3) and Medium unlocks — you don't have to clear every
   Easy first. Solve a couple of Medium cleanly (default: 2) and the app moves
   you to the next pattern, skipping whatever's left in this one.
+- **Anki gate**: a pattern stays locked (🔒) until its Anki cards — deck
+  `2. LeetCode Patterns::NN …` (Intro, Easy, Medium) — have all been seen at
+  least once (suspended cards don't count). `server.py` asks AnkiConnect on
+  `127.0.0.1:8766`; once unlocked a pattern stays unlocked and the list is
+  saved in `data/progress.json`. Reviews from locked patterns wait too. Without
+  Anki (or on GitHub Pages) use "Odblokuj ręcznie".
 - **Timer as a budget, not a stopwatch**: 30 min for Easy, 45 for Medium.
   Keeps counting past zero (shows `+MM:SS`) so the logged time is always
   accurate even if you go over.

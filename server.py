@@ -11,12 +11,46 @@ import http.server
 import json
 import os
 import socketserver
+import sys
+import urllib.request
 import webbrowser
 
 PORT = 8765
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, "data")
 DATA_FILE = os.path.join(DATA_DIR, "progress.json")
+
+
+ANKI_URL = "http://127.0.0.1:8766"  # AnkiConnect (8765 is taken by this server)
+ANKI_ROOT = "2. LeetCode Patterns"
+PATTERN_COUNT = 41
+
+
+def anki(action, **params):
+    req = urllib.request.Request(ANKI_URL, json.dumps({"action": action, "version": 6, "params": params}).encode())
+    res = json.load(urllib.request.urlopen(req, timeout=5))
+    if res.get("error"):
+        raise RuntimeError(res["error"])
+    return res["result"]
+
+
+def anki_status():
+    """New (unseen, not suspended) and total cards per pattern deck "2. LeetCode Patterns::NN …"."""
+    try:
+        actions = []
+        for n in range(1, PATTERN_COUNT + 1):
+            deck = f'"deck:{ANKI_ROOT}::{n:02d} *"'
+            actions.append({"action": "findCards", "params": {"query": f"{deck} is:new -is:suspended"}})
+            actions.append({"action": "findCards", "params": {"query": deck}})
+        res = anki("multi", actions=actions)
+    except (OSError, RuntimeError, ValueError):
+        return {"ok": False}
+    patterns = {}
+    for n in range(1, PATTERN_COUNT + 1):
+        # inner actions without "version" come back as bare lists
+        new, total = res[2 * n - 2], res[2 * n - 1]
+        patterns[n] = {"left": len(new), "total": len(total)}
+    return {"ok": True, "patterns": patterns}
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -33,6 +67,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     self.wfile.write(f.read())
             else:
                 self.wfile.write(b"null")
+            return
+        if self.path == "/anki":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(anki_status()).encode())
             return
         super().do_GET()
 
@@ -68,7 +108,8 @@ if __name__ == "__main__":
         print(f"gridgrind running at {url}")
         print("Progress auto-saves to data/progress.json — commit it whenever you like.")
         print("Ctrl+C to stop.")
-        webbrowser.open(url)
+        if "--no-browser" not in sys.argv:  # LaunchAgent runs it in the background
+            webbrowser.open(url)
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

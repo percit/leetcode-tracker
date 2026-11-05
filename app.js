@@ -11,6 +11,7 @@ const BOX_INTERVAL_DAYS = [1, 2, 4, 8, 16, 30]; // Leitner box -> days until due
 const PROGRESS_KEY = "gridgrind_progress_v1";
 const ACTIVE_PATTERN_KEY = "gridgrind_active_pattern_v1";
 const CUSTOM_KEY = "gridgrind_custom_v1";
+const ANKI_UNLOCKED_KEY = "gridgrind_anki_unlocked_v1";
 
 /* ---------------------------------------------------------------------- */
 /* Seed: real history already logged by hand in the obsidian-vault notes  */
@@ -161,6 +162,11 @@ function loadState() {
   activePatternId = savedPattern && PATTERNS.some((p) => p.id === savedPattern) ? savedPattern : 1;
 
   customProblems = loadCustom();
+  try {
+    ankiUnlocked = JSON.parse(localStorage.getItem(ANKI_UNLOCKED_KEY)) || [];
+  } catch (e) {
+    ankiUnlocked = [];
+  }
   for (const c of customProblems) {
     PROBLEM_INDEX[c.slug] = { ...c, patternId: null, patternName: c.patternName };
   }
@@ -192,7 +198,7 @@ function syncToServer() {
   fetch("/save", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ progress, customProblems, activePatternId }),
+    body: JSON.stringify({ progress, customProblems, activePatternId, ankiUnlocked }),
   }).catch(() => {
     serverAvailable = false;
   });
@@ -258,7 +264,7 @@ function ghScheduleSave() {
   ghTimer = setTimeout(() => ghSave(true), 1500);
 }
 async function ghSave(retry) {
-  const snapshot = { progress, customProblems, activePatternId };
+  const snapshot = { progress, customProblems, activePatternId, ankiUnlocked };
   const body = {
     message: `progress update (web) ${new Date().toISOString().slice(0, 16)}`,
     content: b64EncodeUtf8(JSON.stringify(snapshot, null, 2) + "\n"),
@@ -292,6 +298,41 @@ function saveActivePattern(id) {
   activePatternId = id;
   localStorage.setItem(ACTIVE_PATTERN_KEY, String(id));
   syncToServer();
+}
+
+/* Anki gate: a pattern's LeetCode problems unlock only after its Anki cards
+   (deck "2. LeetCode Patterns::NN …": Intro, Easy, Medium) have all been seen.
+   server.py asks AnkiConnect; once unlocked a pattern stays unlocked, and the
+   list is saved with the progress so it also works on GitHub Pages. */
+let ankiUnlocked = [];
+let ankiLeft = {}; // pattern id -> new (unseen, not suspended) Anki cards left; empty when Anki is unreachable
+let ankiReachable = false;
+
+function isUnlocked(patternId) {
+  return ankiUnlocked.includes(patternId);
+}
+function unlockPattern(patternId) {
+  if (isUnlocked(patternId)) return;
+  ankiUnlocked.push(patternId);
+  localStorage.setItem(ANKI_UNLOCKED_KEY, JSON.stringify(ankiUnlocked));
+  syncToServer();
+}
+async function refreshAnki() {
+  if (!serverAvailable) return;
+  try {
+    const res = await fetch("/anki", { cache: "no-store" });
+    const data = await res.json();
+    ankiReachable = !!data.ok;
+    if (!data.ok) return;
+    ankiLeft = {};
+    for (const id in data.patterns) {
+      const { left, total } = data.patterns[id];
+      ankiLeft[id] = left;
+      if (total > 0 && left === 0) unlockPattern(Number(id));
+    }
+  } catch (e) {
+    ankiReachable = false;
+  }
 }
 
 function getProgress(slug) {
@@ -347,6 +388,7 @@ function getSuggestion() {
     guard += 1;
     const pattern = PATTERNS.find((p) => p.id === id);
     if (!pattern) return null;
+    if (!isUnlocked(pattern.id)) return { locked: true, pattern };
     const stats = patternStats(pattern);
 
     const nextEasy = pattern.problems.find((p) => p.difficulty === "Easy" && !hasAnyAttempt(p.slug));
@@ -373,6 +415,7 @@ function getDueReviews() {
     if (p.attempts.length > 0 && p.due && p.due <= today) {
       const info = PROBLEM_INDEX[slug];
       if (!info) continue;
+      if (info.patternId && !isUnlocked(info.patternId)) continue; // waits for the Anki gate too
       out.push({ slug, ...info, due: p.due, box: p.box, personalDifficulty: p.personalDifficulty, overdueDays: daysBetween(p.due, today) });
     }
   }
@@ -399,6 +442,7 @@ function getFocusItem() {
   }
   const suggestion = getSuggestion();
   if (!suggestion) return null;
+  if (suggestion.locked) return { type: "locked", patternId: suggestion.pattern.id, patternName: suggestion.pattern.name };
   return {
     type: "new",
     slug: suggestion.problem.slug,
@@ -535,6 +579,29 @@ function renderHome() {
     return;
   }
 
+  if (focus.type === "locked") {
+    const left = ankiLeft[focus.patternId];
+    const status = !serverAvailable
+      ? "Stan Anki sprawdzam tylko lokalnie (python3 server.py) — tutaj odblokuj ręcznie."
+      : !ankiReachable
+        ? "Anki nie odpowiada — uruchom Anki i odśwież stronę."
+        : `Zostało ${left} nowych kart w Anki.`;
+    els.focusHeading.textContent = "Najpierw Anki";
+    els.suggestCard.innerHTML = `
+      <div class="suggest-top"><span class="pattern-tag">${focus.patternId}. ${focus.patternName}</span></div>
+      <h3 class="suggest-title">Przerób w Anki dział ${focus.patternId}: Intro, Easy, Medium</h3>
+      <p class="warn-line">${status}</p>
+      <div class="suggest-actions">
+        <button class="btn" id="unlockPatternBtn">Odblokuj ręcznie</button>
+      </div>
+    `;
+    document.getElementById("unlockPatternBtn").addEventListener("click", () => {
+      unlockPattern(focus.patternId);
+      renderAll();
+    });
+    return;
+  }
+
   const isReview = focus.type === "review";
   els.focusHeading.textContent = isReview ? "Zaległa powtórka" : "Następne zadanie";
 
@@ -608,7 +675,7 @@ function renderBrowse() {
     const head = document.createElement("div");
     head.className = "pattern-head";
     head.innerHTML = `
-      <span class="pattern-name"><span class="idx">${pattern.id}.</span> ${pattern.name} ${pattern.id === activePatternId ? '<span class="pattern-active-mark">● aktywny</span>' : ""}</span>
+      <span class="pattern-name"><span class="idx">${pattern.id}.</span> ${pattern.name} ${pattern.id === activePatternId ? '<span class="pattern-active-mark">● aktywny</span>' : ""}${isUnlocked(pattern.id) ? "" : `<span class="pattern-active-mark">🔒 Anki${ankiLeft[pattern.id] != null ? ` (${ankiLeft[pattern.id]})` : ""}</span>`}</span>
       <span class="pattern-progress">
         <span class="pattern-count">${stats.attempted}/${stats.total} (E:${stats.easySolved}/${stats.easyTotal} M:${stats.medSolved}/${stats.medTotal})</span>
         <span class="pattern-bar"><span class="pattern-bar-fill" style="width:${pct}%"></span></span>
@@ -1064,10 +1131,12 @@ async function bootGitHub() {
     customProblems = data.customProblems || [];
     for (const c of customProblems) PROBLEM_INDEX[c.slug] = { ...c, patternId: null };
     activePatternId = data.activePatternId && PATTERNS.some((p) => p.id === data.activePatternId) ? data.activePatternId : 1;
+    ankiUnlocked = data.ankiUnlocked || [];
     try {
       localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
       localStorage.setItem(CUSTOM_KEY, JSON.stringify(customProblems));
       localStorage.setItem(ACTIVE_PATTERN_KEY, String(activePatternId));
+      localStorage.setItem(ANKI_UNLOCKED_KEY, JSON.stringify(ankiUnlocked));
     } catch (e) {}
     setSyncStatus(ghToken() ? "zsynchronizowane z repo ✓" : "tylko odczyt — dodaj token GitHub, żeby zapisywać", !ghToken());
   } else {
@@ -1087,6 +1156,7 @@ async function boot() {
         customProblems = data.customProblems || [];
         for (const c of customProblems) PROBLEM_INDEX[c.slug] = { ...c, patternId: null };
         activePatternId = data.activePatternId && PATTERNS.some((p) => p.id === data.activePatternId) ? data.activePatternId : 1;
+        ankiUnlocked = data.ankiUnlocked || [];
       } else {
         // Server is up but data/progress.json doesn't exist yet — bootstrap
         // from localStorage (or the seed), then push it to create the file.
@@ -1102,6 +1172,8 @@ async function boot() {
     await bootGitHub();
   }
   showMainView("home");
+  renderAll();
+  await refreshAnki();
   renderAll();
 }
 
