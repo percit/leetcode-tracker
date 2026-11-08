@@ -301,7 +301,7 @@ function saveActivePattern(id) {
 }
 
 /* Anki gate: a pattern's LeetCode problems unlock only after its Anki cards
-   (deck "2. LeetCode Patterns::NN …": Intro, Easy, Medium) have all been seen.
+   (deck "2. LeetCode Patterns::NN …": Intro, Easy, Medium, Hard) have all been seen.
    server.py asks AnkiConnect; once unlocked a pattern stays unlocked, and the
    list is saved with the progress so it also works on GitHub Pages. */
 let ankiUnlocked = [];
@@ -589,7 +589,7 @@ function renderHome() {
     els.focusHeading.textContent = "Najpierw Anki";
     els.suggestCard.innerHTML = `
       <div class="suggest-top"><span class="pattern-tag">${focus.patternId}. ${focus.patternName}</span></div>
-      <h3 class="suggest-title">Przerób w Anki dział ${focus.patternId}: Intro, Easy, Medium</h3>
+      <h3 class="suggest-title">Przerób w Anki dział ${focus.patternId}: Intro, Easy, Medium, Hard</h3>
       <p class="warn-line">${status}</p>
       <div class="suggest-actions">
         <button class="btn" id="unlockPatternBtn">Odblokuj ręcznie</button>

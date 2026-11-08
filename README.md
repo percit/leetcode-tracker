@@ -15,7 +15,7 @@ are filtered out for now — Easy/Medium only.
   Easy first. Solve a couple of Medium cleanly (default: 2) and the app moves
   you to the next pattern, skipping whatever's left in this one.
 - **Anki gate**: a pattern stays locked (🔒) until its Anki cards — deck
-  `2. LeetCode Patterns::NN …` (Intro, Easy, Medium) — have all been seen at
+  `2. LeetCode Patterns::NN …` (Intro, Easy, Medium, Hard) — have all been seen at
   least once (suspended cards don't count). `server.py` asks AnkiConnect on
   `127.0.0.1:8766`; once unlocked a pattern stays unlocked and the list is
   saved in `data/progress.json`. Reviews from locked patterns wait too. Without
