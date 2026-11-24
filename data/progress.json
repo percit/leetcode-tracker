@@ -1,5 +1,20 @@
 {
-  "progress": {},
+  "progress": {
+    "two-sum": {
+      "personalDifficulty": "medium",
+      "box": 0,
+      "due": "2026-11-24",
+      "attempts": [
+        {
+          "date": "2026-11-24",
+          "outcome": "struggled",
+          "timeSec": null,
+          "note": "",
+          "code": "vector<int> twoSum(vector<int>& nums, int target) {\n        unordered_map<int, int> seen;\n        for(int i = 0; i < (int)nums.size(); i++) {\n            const int need = target - nums[i];\n            if(seen.count(need)) {\n                return {seen[need], i};\n            }\n            seen[nums[i]] = i;\n        }\n        return {};\n    }"
+        }
+      ]
+    }
+  },
   "customProblems": [],
   "activePatternId": 1,
   "ankiUnlocked": [
