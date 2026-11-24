@@ -44,7 +44,9 @@
           "note": "zapomnialem tego syntaxu jak sie robi to array[s[i] - 'a' \nzapomnialem jak sie robi statycznego arraya z zerami",
           "code": "bool isAnagram(string s, string t) {\n        if(s.size() != t.size()) return false;\n        int seen[26] = {0};\n        for(int i = 0; i < s.size(); i++) {\n            seen[s[i] - 'a']--;\n            seen[t[i] - 'a']++;\n        }\n        for (int i = 0; i < s.size(); i++) {\n            if(seen[s[i] - 'a'] != 0) {\n                return false;\n            }\n        }\n        return true;\n    }bool isAnagram(string s, string t) {\n        if(s.size() != t.size()) return false;\n        int seen[26] = {0};\n        for(int i = 0; i < s.size(); i++) {\n            seen[s[i] - 'a']--;\n            seen[t[i] - 'a']++;\n        }\n        for (int i = 0; i < s.size(); i++) {\n            if(seen[s[i] - 'a'] != 0) {\n                return false;\n            }\n        }\n        return true;\n    }"
         }
-      ]
+      ],
+      "idealSolution": null,
+      "idealSolutionUncertain": false
     }
   },
   "customProblems": [],
