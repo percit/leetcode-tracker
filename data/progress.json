@@ -12,7 +12,9 @@
           "note": "",
           "code": "vector<int> twoSum(vector<int>& nums, int target) {\n        unordered_map<int, int> seen;\n        for(int i = 0; i < (int)nums.size(); i++) {\n            const int need = target - nums[i];\n            if(seen.count(need)) {\n                return {seen[need], i};\n            }\n            seen[nums[i]] = i;\n        }\n        return {};\n    }"
         }
-      ]
+      ],
+      "idealSolution": "vector<int> twoSum(vector<int>& nums, int target) {\n        unordered_map<int, int> seen;\n        for(int i = 0; i < (int)nums.size(); i++) {\n            const int need = target - nums[i];\n            if(seen.count(need)) {\n                return {seen[need], i};\n            }\n            seen[nums[i]] = i;\n        }\n        return {};\n    }",
+      "idealSolutionUncertain": false
     }
   },
   "customProblems": [],
