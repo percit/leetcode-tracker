@@ -104,13 +104,19 @@ const SEED_PROGRESS = {
 /* Date helpers                                                            */
 /* ---------------------------------------------------------------------- */
 
+// Dates are local calendar days. toISOString() is UTC, so in UTC+1 local
+// midnight became the previous day and "+1 day" landed on today.
+function localStamp(d) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 function todayStamp() {
-  return new Date().toISOString().slice(0, 10);
+  return localStamp(new Date());
 }
 function addDays(dateStr, days) {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return localStamp(d);
 }
 function daysBetween(fromStr, toStr) {
   const a = new Date(fromStr + "T00:00:00");
