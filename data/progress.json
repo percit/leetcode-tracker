@@ -15,6 +15,20 @@
       ],
       "idealSolution": "vector<int> twoSum(vector<int>& nums, int target) {\n        unordered_map<int, int> seen;\n        for(int i = 0; i < (int)nums.size(); i++) {\n            const int need = target - nums[i];\n            if(seen.count(need)) {\n                return {seen[need], i};\n            }\n            seen[nums[i]] = i;\n        }\n        return {};\n    }",
       "idealSolutionUncertain": false
+    },
+    "contains-duplicate": {
+      "personalDifficulty": "easy",
+      "box": 1,
+      "due": "2026-11-26",
+      "attempts": [
+        {
+          "date": "2026-11-24",
+          "outcome": "clean",
+          "timeSec": null,
+          "note": "- uzylem mapy zamiast setu - oba by byly okej, ale set jest tanszy pamieciowo",
+          "code": "bool containsDuplicate(vector<int>& nums) {\n        unordered_set<int> seen;\n        for(auto i : nums) {\n            if(seen.count(i)) return true;\n            seen.insert(i);\n        }\n        return false;\n    }\n};"
+        }
+      ]
     }
   },
   "customProblems": [],
