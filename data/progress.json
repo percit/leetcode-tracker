@@ -40,9 +40,9 @@
       "idealSolutionUncertain": false
     },
     "valid-anagram": {
-      "personalDifficulty": "medium",
-      "box": 0,
-      "due": "2026-11-25",
+      "personalDifficulty": "easy",
+      "box": 1,
+      "due": "2026-11-27",
       "attempts": [
         {
           "date": "2026-11-24",
@@ -50,6 +50,13 @@
           "timeSec": null,
           "note": "zapomnialem tego syntaxu jak sie robi to array[s[i] - 'a' \nzapomnialem jak sie robi statycznego arraya z zerami",
           "code": "bool isAnagram(string s, string t) {\n        if(s.size() != t.size()) return false;\n        int seen[26] = {0};\n        for(int i = 0; i < s.size(); i++) {\n            seen[s[i] - 'a']--;\n            seen[t[i] - 'a']++;\n        }\n        for (int i = 0; i < s.size(); i++) {\n            if(seen[s[i] - 'a'] != 0) {\n                return false;\n            }\n        }\n        return true;\n    }bool isAnagram(string s, string t) {\n        if(s.size() != t.size()) return false;\n        int seen[26] = {0};\n        for(int i = 0; i < s.size(); i++) {\n            seen[s[i] - 'a']--;\n            seen[t[i] - 'a']++;\n        }\n        for (int i = 0; i < s.size(); i++) {\n            if(seen[s[i] - 'a'] != 0) {\n                return false;\n            }\n        }\n        return true;\n    }"
+        },
+        {
+          "date": "2026-11-25",
+          "outcome": "clean",
+          "timeSec": null,
+          "note": "",
+          "code": null
         }
       ],
       "idealSolution": null,
