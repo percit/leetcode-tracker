@@ -47,6 +47,20 @@
       ],
       "idealSolution": null,
       "idealSolutionUncertain": false
+    },
+    "group-anagrams": {
+      "personalDifficulty": "hard",
+      "box": 0,
+      "due": "2026-11-26",
+      "attempts": [
+        {
+          "date": "2026-11-25",
+          "outcome": "struggled",
+          "timeSec": null,
+          "note": "- nie wymyslilem tego unordered mapy z stringiem i vectorem stringow\n- zapomnialem syntax std:sort\n- zapomnialem jak sie wyciaga kilka obiektow naraz syntax -> for(auto& [key, words]: groups)",
+          "code": "vector<vector<string>> groupAnagrams(vector<string>& strs) {\n        unordered_map<string, vector<string>> groups;\n        //klucz to posortowany array, <vector tych anagramow>\n        for (const string& str: strs) {\n            auto key = str;\n            sort(key.begin(), key.end());\n            groups[key].push_back(str);\n        }\n        vector<vector<string>> res;\n        for(auto& [key, words]: groups) {\n            res.push_back(words);\n        }\n        return res;\n    }"
+        }
+      ]
     }
   },
   "customProblems": [],
